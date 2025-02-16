@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: dazhy
+      POSTGRES_PASSWORD: dazhy
+      POSTGRES_DB: avito_coin
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: avito_coin_service
+    restart: on-failure
+    depends_on: 
+      - postgres
+    environment:
+      APP_IP: "0.0.0.0"
+      APP_PORT: "8081"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "dazhy"
+      DB_PASSWORD: "dazhy"
+      DB_NAME: "avito_coin"
+    ports:
+      - "8081:8081"
+      - "8080:8080"
+
+volumes:
+  db_data:
