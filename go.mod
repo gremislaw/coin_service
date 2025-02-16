@@ -33,7 +33,6 @@ require (
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/rs/dnscache v0.0.0-20230804202142-fc85eb664529 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
