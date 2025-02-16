@@ -20,24 +20,24 @@
 
 ### Поддерживаемые методы:
 
-- **POST** `/auth`:
+- **POST** `/api/auth`:
   - Регистрация или авторизация пользователя.
   - Пример запроса:
     ```bash
-    curl -X POST http://localhost:8080/auth \
+    curl -X POST http://localhost:8080/api/auth \
       -H "Content-Type: application/json" \
       -d '{"username": "user1", "password": "pass123"}'
     ```
   - Пример ответа:
     ```json
-    {"message": "user authenticated successfully", "token": "JWT_TOKEN"}
+    {"token": "JWT_TOKEN"}
     ```
 
-- **POST** `/merch/{merch_id}/buy`:
+- **GET** `/api/buy/:merch_id`:
   - Покупка мерча по его ID.
   - Пример запроса:
     ```bash
-    curl -X POST http://localhost:8080/merch/1/buy \
+    curl -X POST http://localhost:8080/api/buy/1 \
       -H "Authorization: Bearer JWT_TOKEN"
     ```
   - Пример ответа:
@@ -45,11 +45,11 @@
     {"message": "merch purchased successfully"}
     ```
 
-- **POST** `/users/transfer-coins`:
+- **POST** `/api/sencCoin`:
   - Перевод монеток другому сотруднику.
   - Пример запроса:
     ```bash
-    curl -X POST http://localhost:8080/users/transfer-coins \
+    curl -X POST http://localhost:8080/api/sencCoin \
       -H "Authorization: Bearer JWT_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{"to_user": 2, "amount": 100}'
@@ -59,40 +59,17 @@
     {"message": "coins transferred successfully"}
     ```
 
-- **GET** `/users/balance`:
+- **GET** `/api/info`:
   - Получение текущего баланса пользователя.
   - Пример запроса:
     ```bash
-    curl -X GET http://localhost:8080/users/balance \
+    curl -X GET http://localhost:8080/api/info \
       -H "Authorization: Bearer JWT_TOKEN"
     ```
   - Пример ответа:
     ```json
-    {"balance": 900}
-    ```
+    {"coinHistory":{"received":[{"amount":50,"fromUser":"user1"}],"sent":[{"amount":50,"toUser":"user3"},{"amount":50,"toUser":"user3"},  {"amount":50,"toUser":"user3"}]},"coins":820,"inventory":[{"quantity":1,"type":"t-shirt"}]}
 
-- **GET** `/users/purchases`:
-  - Получение списка покупок пользователя.
-  - Пример запроса:
-    ```bash
-    curl -X GET http://localhost:8080/users/purchases \
-      -H "Authorization: Bearer JWT_TOKEN"
-    ```
-  - Пример ответа:
-    ```json
-    [{"id": 1, "name": "t-shirt", "price": 80}]
-    ```
-
-- **GET** `/users/transactions`:
-  - Получение истории транзакций пользователя.
-  - Пример запроса:
-    ```bash
-    curl -X GET http://localhost:8080/users/transactions \
-      -H "Authorization: Bearer JWT_TOKEN"
-    ```
-  - Пример ответа:
-    ```json
-    [{"from_user": 1, "to_user": 2, "amount": 100, "timestamp": "2023-10-01T12:00:00Z"}]
     ```
 
 ---
