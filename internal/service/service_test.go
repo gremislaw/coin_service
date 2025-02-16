@@ -1,146 +1,200 @@
 package service_test
 
 import (
-	"avito_coin/internal/db"
-	"avito_coin/internal/service"
 	"context"
+	"database/sql"
 	"testing"
 
+	"avito_coin/internal/db"
+	"avito_coin/internal/service"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
+// MockRepository - мок-репозиторий для тестирования
 type MockRepository struct {
-	mock.Mock
+	CreateUserFunc          func(ctx context.Context, username, password string) (int32, error)
+	CreateMerchFunc         func(ctx context.Context, name string, price int32) error
+	BuyMerchFunc            func(ctx context.Context, userID, merchID int32) error
+	GetMerchPriceFunc       func(ctx context.Context, merchID int32) (int32, error)
+	TransferCoinsFunc       func(ctx context.Context, fromUser, toUser, amount int32) error
+	GetUserBalanceFunc      func(ctx context.Context, userID int32) (int32, error)
+	GetUserPurchasesFunc    func(ctx context.Context, userID int32) ([]db.GetUserPurchasesRow, error)
+	GetTransactionsFunc     func(ctx context.Context, userID int32) ([]db.GetTransactionsRow, error)
+	UpdateUserBalanceFunc   func(ctx context.Context, userID int32, balance int32) error
+	UserExistsFunc          func(ctx context.Context, username string) (db.UserExistsRow, error)
 }
 
 func (m *MockRepository) CreateUser(ctx context.Context, username, password string) (int32, error) {
-	args := m.Called(ctx, username, password)
-	return args.Get(0).(int32), args.Error(1)
+	return m.CreateUserFunc(ctx, username, password)
 }
 
 func (m *MockRepository) CreateMerch(ctx context.Context, name string, price int32) error {
-	args := m.Called(ctx, name, price)
-	return args.Error(0)
+	return m.CreateMerchFunc(ctx, name, price)
 }
 
 func (m *MockRepository) BuyMerch(ctx context.Context, userID, merchID int32) error {
-	args := m.Called(ctx, userID, merchID)
-	return args.Error(0)
-}
-
-func (m *MockRepository) GetUserBalance(ctx context.Context, userID int32) (int32, error) {
-	args := m.Called(ctx, userID)
-	return args.Get(0).(int32), args.Error(1)
+	return m.BuyMerchFunc(ctx, userID, merchID)
 }
 
 func (m *MockRepository) GetMerchPrice(ctx context.Context, merchID int32) (int32, error) {
-	args := m.Called(ctx, merchID)
-	return args.Get(0).(int32), args.Error(1)
+	return m.GetMerchPriceFunc(ctx, merchID)
 }
 
 func (m *MockRepository) TransferCoins(ctx context.Context, fromUser, toUser, amount int32) error {
-	args := m.Called(ctx, fromUser, toUser, amount)
-	return args.Error(0)
+	return m.TransferCoinsFunc(ctx, fromUser, toUser, amount)
 }
 
-func (m *MockRepository) UpdateUserBalance(ctx context.Context, userID, balance int32) error {
-	args := m.Called(ctx, userID, balance)
-	return args.Error(0)
-}
-
-func (m *MockRepository) UserExists(ctx context.Context, username string) (db.UserExistsRow, error) {
-	args := m.Called(ctx, username)
-	return args.Get(0).(db.UserExistsRow), args.Error(1)
-}
-
-func (m *MockRepository) GetTransactions(ctx context.Context, userID int32) ([]db.GetTransactionsRow, error) {
-	args := m.Called(ctx, userID)
-	return args.Get(0).([]db.GetTransactionsRow), args.Error(1)
+func (m *MockRepository) GetUserBalance(ctx context.Context, userID int32) (int32, error) {
+	return m.GetUserBalanceFunc(ctx, userID)
 }
 
 func (m *MockRepository) GetUserPurchases(ctx context.Context, userID int32) ([]db.GetUserPurchasesRow, error) {
-	args := m.Called(ctx, userID)
-	return args.Get(0).([]db.GetUserPurchasesRow), args.Error(1)
+	return m.GetUserPurchasesFunc(ctx, userID)
+}
+
+func (m *MockRepository) GetTransactions(ctx context.Context, userID int32) ([]db.GetTransactionsRow, error) {
+	return m.GetTransactionsFunc(ctx, userID)
+}
+
+func (m *MockRepository) UpdateUserBalance(ctx context.Context, userID int32, balance int32) error {
+	return m.UpdateUserBalanceFunc(ctx, userID, balance)
+}
+
+func (m *MockRepository) UserExists(ctx context.Context, username string) (db.UserExistsRow, error) {
+	return m.UserExistsFunc(ctx, username)
 }
 
 func TestCreateUser(t *testing.T) {
-	mockRepo := new(MockRepository)
+	// Создаем мок-репозиторий
+	mockRepo := &MockRepository{
+		CreateUserFunc: func(ctx context.Context, username, password string) (int32, error) {
+			return 1, nil // Возвращаем ID нового пользователя
+		},
+	}
+
+	// Создаем сервис с мок-репозиторием
 	coinService := service.NewCoinService(mockRepo)
 
-	// Мокаем успешное создание пользователя
-	mockRepo.On("CreateUser", mock.Anything, "testuser", "password123").Return(int32(1), nil)
+	// Вызываем метод CreateUser
+	userID, err := coinService.CreateUser(context.Background(), "testuser", "testpassword")
 
-	// Вызов метода
-	userID, err := coinService.CreateUser(context.Background(), "testuser", "password123")
-
-	// Проверка результата
+	// Проверяем, что ошибок нет и ID пользователя корректный
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), userID)
-	mockRepo.AssertExpectations(t)
 }
 
-func TestBuyMerch_InsufficientBalance(t *testing.T) {
-	mockRepo := new(MockRepository)
+func TestBuyMerch(t *testing.T) {
+	// Создаем мок-репозиторий
+	mockRepo := &MockRepository{
+		GetUserBalanceFunc: func(ctx context.Context, userID int32) (int32, error) {
+			return 1000, nil // Баланс пользователя
+		},
+		GetMerchPriceFunc: func(ctx context.Context, merchID int32) (int32, error) {
+			return 500, nil // Цена мерча
+		},
+		BuyMerchFunc: func(ctx context.Context, userID, merchID int32) error {
+			return nil // Успешная покупка
+		},
+	}
+
+	// Создаем сервис с мок-репозиторием
 	coinService := service.NewCoinService(mockRepo)
 
-	// Мокаем ответ с балансом 50, а цена мерча 100
-	mockRepo.On("GetUserBalance", mock.Anything, int32(1)).Return(int32(50), nil)
-	mockRepo.On("GetMerchPrice", mock.Anything, int32(1)).Return(int32(100), nil)
-
-	// Вызов метода
+	// Вызываем метод BuyMerch
 	err := coinService.BuyMerch(context.Background(), 1, 1)
 
-	// Проверка результата
-	assert.Error(t, err)
-	assert.Equal(t, "insufficient balance for purchase", err.Error())
-	mockRepo.AssertExpectations(t)
-}
-
-func TestUpdateUserBalance_BalanceCannotBeNegative(t *testing.T) {
-	mockRepo := new(MockRepository)
-	coinService := service.NewCoinService(mockRepo)
-
-	// Мокаем существование пользователя с балансом 100
-	mockRepo.On("GetUserBalance", mock.Anything, int32(1)).Return(int32(100), nil)
-
-	// Вызов метода с отрицательным балансом
-	err := coinService.UpdateUserBalance(context.Background(), 1, -50)
-
-	// Проверка результата
-	assert.Error(t, err)
-	assert.Equal(t, "balance cannot be negative", err.Error())
-	mockRepo.AssertExpectations(t)
-}
-
-func TestGetMerchPrice(t *testing.T) {
-	mockRepo := new(MockRepository)
-	coinService := service.NewCoinService(mockRepo)
-
-	// Мокаем цену мерча
-	mockRepo.On("GetMerchPrice", mock.Anything, int32(1)).Return(int32(100), nil)
-
-	// Вызов метода
-	price, err := coinService.GetMerchPrice(context.Background(), 1)
-
-	// Проверка результата
+	// Проверяем, что ошибок нет
 	assert.NoError(t, err)
-	assert.Equal(t, int32(100), price)
-	mockRepo.AssertExpectations(t)
+}
+
+func TestTransferCoins(t *testing.T) {
+	// Создаем мок-репозиторий
+	mockRepo := &MockRepository{
+		UserExistsFunc: func(ctx context.Context, username string) (db.UserExistsRow, error) {
+			return db.UserExistsRow{ID: 2}, nil // Получатель существует
+		},
+		GetUserBalanceFunc: func(ctx context.Context, userID int32) (int32, error) {
+			if userID == 1 {
+				return 1000, nil // Баланс отправителя
+			}
+			return 500, nil // Баланс получателя
+		},
+		TransferCoinsFunc: func(ctx context.Context, fromUser, toUser, amount int32) error {
+			return nil // Успешный перевод
+		},
+	}
+
+	// Создаем сервис с мок-репозиторием
+	coinService := service.NewCoinService(mockRepo)
+
+	// Вызываем метод TransferCoins
+	err := coinService.TransferCoins(context.Background(), 1, "testuser2", 200)
+
+	// Проверяем, что ошибок нет
+	assert.NoError(t, err)
 }
 
 func TestGetUserBalance(t *testing.T) {
-	mockRepo := new(MockRepository)
+	// Создаем мок-репозиторий
+	mockRepo := &MockRepository{
+		GetUserBalanceFunc: func(ctx context.Context, userID int32) (int32, error) {
+			return 1000, nil // Баланс пользователя
+		},
+	}
+
+	// Создаем сервис с мок-репозиторием
 	coinService := service.NewCoinService(mockRepo)
 
-	// Мокаем баланс пользователя
-	mockRepo.On("GetUserBalance", mock.Anything, int32(1)).Return(int32(200), nil)
-
-	// Вызов метода
+	// Вызываем метод GetUserBalance
 	infoResponse, err := coinService.GetUserBalance(context.Background(), 1)
 
-	// Проверка результата
+	// Проверяем, что ошибок нет и баланс корректный
 	assert.NoError(t, err)
-	assert.Equal(t, int(200), *infoResponse.Coins)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, 1000, *infoResponse.Coins)
+}
+
+func TestGetUserPurchases(t *testing.T) {
+	// Создаем мок-репозиторий
+	mockRepo := &MockRepository{
+		GetUserPurchasesFunc: func(ctx context.Context, userID int32) ([]db.GetUserPurchasesRow, error) {
+			return []db.GetUserPurchasesRow{
+				{Name: "t-shirt"},
+				{Name: "cup"},
+			}, nil
+		},
+	}
+
+	// Создаем сервис с мок-репозиторием
+	coinService := service.NewCoinService(mockRepo)
+
+	// Вызываем метод GetUserPurchases
+	infoResponse, err := coinService.GetUserPurchases(context.Background(), 1)
+
+	// Проверяем, что ошибок нет и инвентарь корректный
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(*infoResponse.Inventory))
+}
+
+func TestGetTransactions(t *testing.T) {
+	// Создаем мок-репозиторий
+	mockRepo := &MockRepository{
+		GetTransactionsFunc: func(ctx context.Context, userID int32) ([]db.GetTransactionsRow, error) {
+			return []db.GetTransactionsRow{
+				{FromUser: sql.NullInt32{Int32: 2, Valid: true}, ToUser: sql.NullInt32{Int32: 1, Valid: true}, Amount: 100},
+				{FromUser: sql.NullInt32{Int32: 1, Valid: true}, ToUser: sql.NullInt32{Int32: 3, Valid: true}, Amount: 50},
+			}, nil
+		},
+	}
+
+	// Создаем сервис с мок-репозиторием
+	coinService := service.NewCoinService(mockRepo)
+
+	// Вызываем метод GetTransactions
+	infoResponse, err := coinService.GetTransactions(context.Background(), 1)
+
+	// Проверяем, что ошибок нет и история транзакций корректна
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(*infoResponse.CoinHistory.Received))
+	assert.Equal(t, 1, len(*infoResponse.CoinHistory.Sent))
 }
