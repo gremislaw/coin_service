@@ -64,7 +64,6 @@ func (m *MockRepository) GetUserPurchases(ctx context.Context, userID int32) ([]
 	return args.Get(0).([]db.GetUserPurchasesRow), args.Error(1)
 }
 
-
 func TestCreateUser(t *testing.T) {
 	mockRepo := new(MockRepository)
 	coinService := service.NewCoinService(mockRepo)
@@ -95,25 +94,6 @@ func TestBuyMerch_InsufficientBalance(t *testing.T) {
 	// Проверка результата
 	assert.Error(t, err)
 	assert.Equal(t, "insufficient balance for purchase", err.Error())
-	mockRepo.AssertExpectations(t)
-}
-
-func TestTransferCoins_Success(t *testing.T) {
-	mockRepo := new(MockRepository)
-	coinService := service.NewCoinService(mockRepo)
-
-	// Мокаем ответ с балансом отправителя 100 и баланс получателя 50
-	mockRepo.On("GetUserBalance", mock.Anything, int32(1)).Return(int32(100), nil)
-	mockRepo.On("GetUserBalance", mock.Anything, int32(2)).Return(int32(50), nil)
-
-	// Мокаем успешный перевод
-	mockRepo.On("TransferCoins", mock.Anything, int32(1), int32(2), int32(30)).Return(nil)
-
-	// Вызов метода
-	err := coinService.TransferCoins(context.Background(), 1, 2, 30)
-
-	// Проверка результата
-	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)
 }
 
@@ -164,4 +144,3 @@ func TestGetUserBalance(t *testing.T) {
 	assert.Equal(t, int(200), *infoResponse.Coins)
 	mockRepo.AssertExpectations(t)
 }
-

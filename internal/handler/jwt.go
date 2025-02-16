@@ -13,7 +13,7 @@ import (
 )
 
 type Claims struct {
-	UserID   int32  `json:"jwt_user_id"`
+	UserID int32 `json:"jwt_user_id"`
 	jwt.StandardClaims
 }
 
@@ -34,7 +34,7 @@ var jwtSecret = []byte(generateSecretKey())
 
 func generateJWT(user_id int32) (string, error) {
 	claims := &Claims{
-		UserID:   user_id,
+		UserID: user_id,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), // Время жизни токена 24 часа
 		},

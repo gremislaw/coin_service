@@ -45,14 +45,14 @@
     {"message": "merch purchased successfully"}
     ```
 
-- **POST** `/api/sencCoin`:
+- **POST** `/api/sendCoin`:
   - Перевод монеток другому сотруднику.
   - Пример запроса:
     ```bash
     curl -X POST http://localhost:8080/api/sencCoin \
       -H "Authorization: Bearer JWT_TOKEN" \
       -H "Content-Type: application/json" \
-      -d '{"to_user": 2, "amount": 100}'
+      -d '{"toUser": 2, "amount": 100}'
     ```
   - Пример ответа:
     ```json
@@ -157,6 +157,8 @@ volumes:
 ---
 
 ## Тестирование
+
+Для внесения пользователей
 
 Для тестирования сервиса используются unit-тесты. Чтобы запустить тесты, выполните:
 

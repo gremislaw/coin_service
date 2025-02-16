@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"avito_coin/api"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -12,27 +13,11 @@ import (
 
 const baseURL = "http://localhost:8080"
 
-// Структура для авторизации
-type AuthRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-// Структура для ответа на авторизацию
-type AuthResponse struct {
-	Token string `json:"token"`
-}
-
-// Структура для запроса перевода монет
-type TransferCoinsRequest struct {
-	ToUser int32 `json:"to_user"`
-	Amount int32 `json:"amount"`
-}
-
 // Тест для сценария перевода монет с авторизацией через JWT
 func TestSendCoinWithJWT(t *testing.T) {
 	// Авторизация для получения токена
-	authRespReceiver, err := authenticateUser("test1", "test")
+	receiver := "test2"
+	authRespReceiver, err := authenticateUser(receiver, "test")
 	if err != nil {
 		t.Fatalf("Failed to authenticate user: %v", err)
 	}
@@ -40,13 +25,11 @@ func TestSendCoinWithJWT(t *testing.T) {
 	// Извлекаем токены
 	tokenReceiver := authRespReceiver.Token
 
-	receiverID := int32(1) // ID получателя
-
 	// Проверим баланс до перевода
-	initialReceiverBalance := getUserBalance(t)
+	initialReceiverBalance := getUserBalance(t, *tokenReceiver)
 
 	// Авторизация для получения токена
-	authRespSender, err := authenticateUser("testuser", "testpassword")
+	authRespSender, err := authenticateUser("testbro", "test")
 	if err != nil {
 		t.Fatalf("Failed to authenticate user: %v", err)
 	}
@@ -55,15 +38,15 @@ func TestSendCoinWithJWT(t *testing.T) {
 	tokenSender := authRespSender.Token
 
 	// Проверим баланс до перевода
-	initialSenderBalance := getUserBalance(t)
+	initialSenderBalance := getUserBalance(t, *tokenSender)
 
 	// Сумма перевода
-	amount := int32(50) // Количество монет для перевода
+	amount := int32(2) // Количество монет для перевода
 
 	// Перевод монет
-	reqBody := TransferCoinsRequest{
-		ToUser: receiverID,
-		Amount: amount,
+	reqBody := api.SendCoinRequest{
+		ToUser: receiver,
+		Amount: int(amount),
 	}
 	body, err := json.Marshal(reqBody)
 	if err != nil {
@@ -75,7 +58,8 @@ func TestSendCoinWithJWT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+tokenSender) // Добавляем JWT токен в заголовок
+	req.Header.Set("Authorization", "Bearer "+*tokenSender) // Добавляем JWT токен в заголовок
+	req.Header.Set("Content-Type", "application/json")
 
 	client1 := &http.Client{}
 	resp, err := client1.Do(req)
@@ -88,37 +72,25 @@ func TestSendCoinWithJWT(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Проверим баланс отправителя после перевода
-	newSenderBalance := getUserBalance(t)
+	newSenderBalance := getUserBalance(t, *tokenSender)
 
 	// Убедимся, что баланс отправителя уменьшился на сумму перевода
 	assert.Equal(t, initialSenderBalance-amount, newSenderBalance)
 
 	// Cменим сессию
-	req.Header.Set("Authorization", "Bearer "+tokenReceiver) // Добавляем JWT токен в заголовок
+	req.Header.Set("Authorization", "Bearer "+*tokenReceiver) // Добавляем JWT токен в заголовок
 
 	// Проверим баланс отправителя после перевода
-	newReceiverBalance := getUserBalance(t)
+	newReceiverBalance := getUserBalance(t, *tokenReceiver)
 
 	// Убедимся, что баланс отправителя уменьшился на сумму перевода
-	assert.Equal(t, initialReceiverBalance-amount, newReceiverBalance)
-}
-
-// Структура для пользователя
-type User struct {
-	ID       int32  `json:"id"`
-	Username string `json:"username"`
-}
-
-// Структура для покупки мерча
-type BuyMerchRequest struct {
-	UserID  int32 `json:"user_id"`
-	MerchID int32 `json:"merch_id"`
+	assert.Equal(t, initialReceiverBalance+amount, newReceiverBalance)
 }
 
 // Тест для сценария покупки мерча с авторизацией через JWT
 func TestBuyMerchWithJWT(t *testing.T) {
 	// Авторизация для получения токена
-	authResp, err := authenticateUser("testuser", "testpassword")
+	authResp, err := authenticateUser("testbro", "test")
 	if err != nil {
 		t.Fatalf("Failed to authenticate user: %v", err)
 	}
@@ -130,14 +102,14 @@ func TestBuyMerchWithJWT(t *testing.T) {
 	merchID := 1
 
 	// Проверим баланс пользователя до покупки
-	initialBalance := getUserBalance(t)
+	initialBalance := getUserBalance(t, *token)
 
 	// Создаем запрос с JWT токеном в заголовке
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/buy/%v", baseURL, merchID), nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+*token)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -150,11 +122,73 @@ func TestBuyMerchWithJWT(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Проверяем баланс после покупки
-	newBalance := getUserBalance(t)
+	newBalance := getUserBalance(t, *token)
 
 	// Убедитесь, что баланс уменьшился на цену мерча
 	merchPrice := getMerchPrice(t, int32(merchID))
 	assert.Equal(t, initialBalance-merchPrice, newBalance)
+}
+
+// Тест для сценария регистрации и авторизации пользователя
+func TestAuthAndRegistration(t *testing.T) {
+	// Данные для регистрации нового пользователя
+	newUser := api.AuthRequest{
+		Username: "newuser",
+		Password: "newpassword",
+	}
+
+	// Регистрация нового пользователя
+	token, err := authenticateUser(newUser.Username, newUser.Password)
+	if err != nil {
+		t.Fatalf("Failed to register new user: %v", err)
+	}
+	assert.NotEmpty(t, token, "Token should not be empty after registration")
+
+	// Авторизация существующего пользователя
+	existingUser := api.AuthRequest{
+		Username: "testbro",
+		Password: "test",
+	}
+
+	token, err = authenticateUser(existingUser.Username, existingUser.Password)
+	if err != nil {
+		t.Fatalf("Failed to authenticate existing user: %v", err)
+	}
+	assert.NotEmpty(t, token, "Token should not be empty after authentication")
+
+	// Попытка авторизации с неверными данными
+	invalidUser := api.AuthRequest{
+		Username: "testbro",
+		Password: "wrongpassword",
+	}
+
+	_, err = authenticateUser(invalidUser.Username, invalidUser.Password)
+	assert.Error(t, err, "Expected error for invalid credentials")
+}
+
+func TestGetBalanceAndTransactionHistory(t *testing.T) {
+
+	// Авторизация пользователя
+	authResp, err := authenticateUser("testbro", "test")
+	if err != nil {
+		t.Fatalf("Failed to authenticate user: %v", err)
+	}
+	token := authResp.Token
+
+	// Получение информации о балансе и истории транзакций
+	infoResponse, err := getInfo(*token)
+	if err != nil {
+		t.Fatalf("Failed to get user info: %v", err)
+	}
+
+	// Проверяем, что баланс не отрицательный
+	assert.True(t, *infoResponse.Coins >= 0, "Balance should not be negative")
+
+	// Проверяем, что история транзакций не nil
+	assert.NotNil(t, *infoResponse.CoinHistory, "Coin history should not be nil")
+
+	// Проверяем, что инвентарь не nil
+	assert.NotNil(t, *infoResponse.Inventory, "Received transactions should not be nil")
 }
 
 // getMerchPrice получает цену мерча
@@ -177,27 +211,32 @@ func getMerchPrice(t *testing.T, merchID int32) int32 {
 }
 
 // getUserBalance получает баланс пользователя
-func getUserBalance(t *testing.T) int32 {
-	resp, err := http.Get(fmt.Sprintf("%s/api/info", baseURL))
+func getUserBalance(t *testing.T, token string) int32 {
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/info", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("Failed to get user balance: %v", err)
 	}
 	defer resp.Body.Close()
 
-	var infoResponse struct {
-		Balance int32 `json:"balance"`
-	}
+	var infoResponse api.InfoResponse
 	err = json.NewDecoder(resp.Body).Decode(&infoResponse)
 	if err != nil {
-		t.Fatalf("Failed to parse balance response: %v", err)
+		t.Fatalf("Failed to parse info response: %v", err)
 	}
 
-	return infoResponse.Balance
+	return int32(*infoResponse.Coins)
 }
 
 // authenticateUser отправляет запрос для авторизации и получения JWT токена
-func authenticateUser(username, password string) (*AuthResponse, error) {
-	authReq := AuthRequest{
+func authenticateUser(username, password string) (*api.AuthResponse, error) {
+	authReq := api.AuthRequest{
 		Username: username,
 		Password: password,
 	}
@@ -217,11 +256,39 @@ func authenticateUser(username, password string) (*AuthResponse, error) {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var authResp AuthResponse
+	var authResp api.AuthResponse
 	err = json.NewDecoder(resp.Body).Decode(&authResp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode auth response: %v", err)
 	}
 
 	return &authResp, nil
+}
+
+// getInfo отправляет запрос для получения информации о балансе и истории транзакций
+func getInfo(token string) (*api.InfoResponse, error) {
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/info", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var infoResponse api.InfoResponse
+	err = json.NewDecoder(resp.Body).Decode(&infoResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode info response: %v", err)
+	}
+
+	return &infoResponse, nil
 }

@@ -28,6 +28,7 @@ func NewCoinHandler(e *echo.Echo, service *service.CoinService) {
 
 	// Защищенные эндпоинты
 	protected := e.Group("") // Группируем защищенные маршруты
+	protected.Use(verifyAuth)
 	api.RegisterHandlers(protected, handler)
 	e.POST("/api/auth", handler.PostApiAuth)
 	e.GET("/api/merch/:merch_id", handler.GetMerchPrice)
@@ -50,7 +51,7 @@ func (h *CoinHandler) PostApiAuth(c echo.Context) error {
 		errorMessage := err.Error()
 		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Errors: &errorMessage,
-		})		
+		})
 	}
 
 	// Проверяем, есть ли пользователь с таким именем
@@ -63,7 +64,7 @@ func (h *CoinHandler) PostApiAuth(c echo.Context) error {
 			errorMessage := "invalid password"
 			return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 				Errors: &errorMessage,
-			})			
+			})
 		}
 
 		// Генерация JWT для существующего пользователя
@@ -77,7 +78,7 @@ func (h *CoinHandler) PostApiAuth(c echo.Context) error {
 			errorMessage := err.Error()
 			return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 				Errors: &errorMessage,
-			})			
+			})
 		}
 
 		// Возвращаем успешный ответ с токеном
@@ -102,7 +103,7 @@ func (h *CoinHandler) PostApiAuth(c echo.Context) error {
 		errorMessage := err.Error()
 		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Errors: &errorMessage,
-		})		
+		})
 	}
 
 	// Генерация JWT для нового пользователя
@@ -116,7 +117,7 @@ func (h *CoinHandler) PostApiAuth(c echo.Context) error {
 		errorMessage := err.Error()
 		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Errors: &errorMessage,
-		})		
+		})
 	}
 
 	// Возвращаем успешный ответ с токеном
@@ -142,7 +143,7 @@ func (h *CoinHandler) GetApiBuyItem(c echo.Context, item string) error {
 		errorMessage := err.Error()
 		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Errors: &errorMessage,
-		})		
+		})
 	}
 
 	// Извлекаем user_id из JWT
@@ -175,10 +176,7 @@ func (h *CoinHandler) PostApiSendCoin(c echo.Context) error {
 		"method":   "POST",
 	}).Info("PostApiSendCoin request received")
 
-	var request struct {
-		ToUser int32 `json:"to_user"`
-		Amount int32 `json:"amount"`
-	}
+	var request api.SendCoinRequest
 
 	// Парсим тело запроса
 	if err := c.Bind(&request); err != nil {
@@ -192,7 +190,7 @@ func (h *CoinHandler) PostApiSendCoin(c echo.Context) error {
 	userID := c.Get("jwt_user_id").(int32)
 
 	// Вызываем сервисный слой
-	if err := h.service.TransferCoins(c.Request().Context(), userID, request.ToUser, request.Amount); err != nil {
+	if err := h.service.TransferCoins(c.Request().Context(), userID, request.ToUser, int32(request.Amount)); err != nil {
 		h.logger.WithFields(logrus.Fields{
 			"error":     err.Error(),
 			"from_user": userID,
@@ -227,7 +225,7 @@ func (h *CoinHandler) GetMerchPrice(c echo.Context) error {
 		errorMessage := err.Error()
 		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Errors: &errorMessage,
-		})		
+		})
 	}
 
 	// Вызываем сервисный слой для получения цены товара
@@ -271,7 +269,7 @@ func (h *CoinHandler) GetApiInfo(c echo.Context) error {
 		errorMessage := err.Error()
 		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Errors: &errorMessage,
-		})		
+		})
 	}
 
 	// Получаем покупки пользователя
@@ -284,7 +282,7 @@ func (h *CoinHandler) GetApiInfo(c echo.Context) error {
 		errorMessage := err.Error()
 		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Errors: &errorMessage,
-		})		
+		})
 	}
 
 	// Получаем транзакции пользователя
@@ -297,7 +295,7 @@ func (h *CoinHandler) GetApiInfo(c echo.Context) error {
 		errorMessage := err.Error()
 		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
 			Errors: &errorMessage,
-		})		
+		})
 	}
 
 	// Логируем успешное выполнение запроса
@@ -307,7 +305,6 @@ func (h *CoinHandler) GetApiInfo(c echo.Context) error {
 		"purchases":    len(*purchases.Inventory),
 		"transactions": len(*transactions.CoinHistory.Received) + len(*transactions.CoinHistory.Sent),
 	}).Info("User info retrieved successfully")
-
 
 	// Возвращаем все данные в одном ответе
 	return c.JSON(http.StatusOK, api.InfoResponse{

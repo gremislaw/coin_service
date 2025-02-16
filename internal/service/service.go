@@ -60,18 +60,22 @@ func (s *CoinService) BuyMerch(ctx context.Context, userID, merchID int32) error
 }
 
 // TransferCoins - перевод монет от одного пользователя к другому
-func (s *CoinService) TransferCoins(ctx context.Context, fromUser, toUser, amount int32) error {
-	if fromUser == toUser {
+func (s *CoinService) TransferCoins(ctx context.Context, fromUserID int32, toUser string, amount int32) error {
+	toUserData, err := s.repo.UserExists(ctx, toUser)
+	if err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+	if fromUserID == toUserData.ID {
 		return fmt.Errorf("sender and receiver cannot be the same")
 	}
 
 	// Проверяем, существуют ли пользователи
-	senderBalance, err := s.repo.GetUserBalance(ctx, fromUser)
+	senderBalance, err := s.repo.GetUserBalance(ctx, int32(fromUserID))
 	if err != nil {
 		return fmt.Errorf("sender not found: %w", err)
 	}
 
-	_, err = s.repo.GetUserBalance(ctx, toUser)
+	_, err = s.repo.GetUserBalance(ctx, toUserData.ID)
 	if err != nil {
 		return fmt.Errorf("receiver not found: %w", err)
 	}
@@ -88,7 +92,7 @@ func (s *CoinService) TransferCoins(ctx context.Context, fromUser, toUser, amoun
 	}
 
 	// Выполняем перевод через репозиторий
-	return s.repo.TransferCoins(ctx, fromUser, toUser, amount)
+	return s.repo.TransferCoins(ctx, int32(fromUserID), toUserData.ID, int32(amount))
 }
 
 // GetMerchPrice - получение цены мерча
@@ -119,39 +123,39 @@ func (s *CoinService) GetUserPurchases(ctx context.Context, userID int32) (*api.
 	// Получаем покупки из репозитория
 	purchases, err := s.repo.GetUserPurchases(ctx, userID)
 	if err != nil {
-			return nil, fmt.Errorf("failed to get user purchases: %w", err)
+		return nil, fmt.Errorf("failed to get user purchases: %w", err)
 	}
 
 	// Создаем структуру для ответа
 	infoResponse := &api.InfoResponse{
-			Inventory: &[]struct {
-					Quantity *int    `json:"quantity,omitempty"`
-					Type     *string `json:"type,omitempty"`
-			}{},
+		Inventory: &[]struct {
+			Quantity *int    `json:"quantity,omitempty"`
+			Type     *string `json:"type,omitempty"`
+		}{},
 	}
 
 	// Обрабатываем покупки
 	itemCounts := make(map[string]int)
 	for _, purchase := range purchases {
-  // Подсчитываем количество каждого типа предмета
-  itemCounts[purchase.Name]++
-}
+		// Подсчитываем количество каждого типа предмета
+		itemCounts[purchase.Name]++
+	}
 
 	// Временная переменная для хранения списка предметов в инвентаре
 	var inventoryList []struct {
-			Quantity *int    `json:"quantity,omitempty"`
-			Type     *string `json:"type,omitempty"`
+		Quantity *int    `json:"quantity,omitempty"`
+		Type     *string `json:"type,omitempty"`
 	}
 
 	// Обрабатываем покупки
 	for itemType, quantity := range itemCounts {
-			inventoryList = append(inventoryList, struct {
-					Quantity *int    `json:"quantity,omitempty"`
-					Type     *string `json:"type,omitempty"`
-			}{
-					Quantity: &quantity,
-					Type:     &itemType,
-			})
+		inventoryList = append(inventoryList, struct {
+			Quantity *int    `json:"quantity,omitempty"`
+			Type     *string `json:"type,omitempty"`
+		}{
+			Quantity: &quantity,
+			Type:     &itemType,
+		})
 	}
 
 	// Заполняем структуру ответа
@@ -165,60 +169,60 @@ func (s *CoinService) GetTransactions(ctx context.Context, userID int32) (*api.I
 	// Получаем транзакции из репозитория
 	transactions, err := s.repo.GetTransactions(ctx, userID)
 	if err != nil {
-			return nil, fmt.Errorf("failed to get transactions: %w", err)
+		return nil, fmt.Errorf("failed to get transactions: %w", err)
 	}
 
 	// Создаем структуру для ответа
 	infoResponse := &api.InfoResponse{
-			CoinHistory: &struct {
-					Received *[]struct {
-							Amount   *int    `json:"amount,omitempty"`
-							FromUser *string `json:"fromUser,omitempty"`
-					} `json:"received,omitempty"`
-					Sent *[]struct {
-							Amount *int    `json:"amount,omitempty"`
-							ToUser *string `json:"toUser,omitempty"`
-					} `json:"sent,omitempty"`
-			}{},
+		CoinHistory: &struct {
+			Received *[]struct {
+				Amount   *int    `json:"amount,omitempty"`
+				FromUser *string `json:"fromUser,omitempty"`
+			} `json:"received,omitempty"`
+			Sent *[]struct {
+				Amount *int    `json:"amount,omitempty"`
+				ToUser *string `json:"toUser,omitempty"`
+			} `json:"sent,omitempty"`
+		}{},
 	}
 
 	// Временные переменные для хранения полученных и отправленных транзакций
 	var received []struct {
-			Amount   *int    `json:"amount,omitempty"`
-			FromUser *string `json:"fromUser,omitempty"`
+		Amount   *int    `json:"amount,omitempty"`
+		FromUser *string `json:"fromUser,omitempty"`
 	}
 	var sent []struct {
-			Amount *int    `json:"amount,omitempty"`
-			ToUser *string `json:"toUser,omitempty"`
+		Amount *int    `json:"amount,omitempty"`
+		ToUser *string `json:"toUser,omitempty"`
 	}
 
 	// Обрабатываем транзакции
 	for _, tx := range transactions {
-			if tx.ToUser.Int32 == userID {
-					// Это полученные монеты
-					amount := int(tx.Amount)
-					fromUser := tx.FromUser.Int32
-					fromUserName := fmt.Sprintf("user%d", fromUser) // Здесь можно получить имя пользователя из БД
-					received = append(received, struct {
-							Amount   *int    `json:"amount,omitempty"`
-							FromUser *string `json:"fromUser,omitempty"`
-					}{
-							Amount:   &amount,
-							FromUser: &fromUserName,
-					})
-			} else if tx.FromUser.Int32 == userID {
-					// Это отправленные монеты
-					amount := int(tx.Amount)
-					toUser := tx.ToUser.Int32
-					toUserName := fmt.Sprintf("user%d", toUser) // Здесь можно получить имя пользователя из БД
-					sent = append(sent, struct {
-							Amount *int    `json:"amount,omitempty"`
-							ToUser *string `json:"toUser,omitempty"`
-					}{
-							Amount: &amount,
-							ToUser: &toUserName,
-					})
-			}
+		if tx.ToUser.Int32 == userID {
+			// Это полученные монеты
+			amount := int(tx.Amount)
+			fromUser := tx.FromUser.Int32
+			fromUserName := fmt.Sprintf("user%d", fromUser) // Здесь можно получить имя пользователя из БД
+			received = append(received, struct {
+				Amount   *int    `json:"amount,omitempty"`
+				FromUser *string `json:"fromUser,omitempty"`
+			}{
+				Amount:   &amount,
+				FromUser: &fromUserName,
+			})
+		} else if tx.FromUser.Int32 == userID {
+			// Это отправленные монеты
+			amount := int(tx.Amount)
+			toUser := tx.ToUser.Int32
+			toUserName := fmt.Sprintf("user%d", toUser) // Здесь можно получить имя пользователя из БД
+			sent = append(sent, struct {
+				Amount *int    `json:"amount,omitempty"`
+				ToUser *string `json:"toUser,omitempty"`
+			}{
+				Amount: &amount,
+				ToUser: &toUserName,
+			})
+		}
 	}
 
 	// Заполняем структуру ответа
