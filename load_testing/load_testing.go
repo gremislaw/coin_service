@@ -1,6 +1,7 @@
 package main
 
 import (
+	"avito_coin/api"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -8,7 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"sync"
+	"strconv"
 	"time"
 
 	vegeta "github.com/tsenart/vegeta/v12/lib"
@@ -55,20 +56,14 @@ func authenticateUser(userID int) (string, error) {
 		"password": password,
 	}
 
-	body, err := json.Marshal(credentials)
-	if err != nil {
-		return "", err
-	}
+	body, _ := json.Marshal(credentials)
 
-	req, err := http.NewRequestWithContext(
+	req, _ := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodPost,
 		"http://localhost:8080/api/auth",
 		bytes.NewBuffer(body),
 	)
-	if err != nil {
-		return "", err
-	}
 
 	req.Header.Set("Content-Type", "application/json")
 
@@ -102,10 +97,7 @@ func authenticateUser(userID int) (string, error) {
 
 // Добавляем JWT в заголовки запроса.
 func addJWTToHeader(t *vegeta.Target, userID int) error {
-	token, err := authenticateUser(userID)
-	if err != nil {
-		return err
-	}
+	token, _ := authenticateUser(userID)
 
 	t.Header = map[string][]string{
 		"Content-Type":  {"application/json"},
@@ -169,11 +161,11 @@ func testSendCoinTarget(t *vegeta.Target) error {
 	t.Method = "POST"
 	t.URL = "http://localhost:8080/api/sendCoin"
 	fromUserID := randInt(1, 100000)
-	toUserID := randInt(1, 100000)
+	toUser := randInt(1, 100000)
 	amount := randInt(10, 100)
-	data := map[string]int{
-		"to_user": toUserID,
-		"amount":  amount,
+	data := api.SendCoinRequest{
+		ToUser: "test"+strconv.Itoa(toUser),
+		Amount:  amount,
 	}
 
 	body, err := json.Marshal(data)
@@ -209,25 +201,32 @@ func testGetAPIInfo(t *vegeta.Target) error {
 }
 
 func runTest(
-	wg *sync.WaitGroup,
 	attacker *vegeta.Attacker,
-	target func(*vegeta.Target) error,
 	rate vegeta.Rate,
 	duration time.Duration,
-	name string,
 ) {
-	defer wg.Done()
 
 	var metrics vegeta.Metrics
-	for res := range attacker.Attack(target, rate, duration, name) {
+	for res := range attacker.Attack(generateTargets(), rate, duration, "mixed testing") {
 		metrics.Add(res)
 	}
 
 	metrics.Close()
 
 	// Выводим результаты теста
-	fmt.Printf("\n%s Test Results:\n", name)
+	fmt.Println("Test Results:\n")
 	printMetrics(metrics)
+}
+
+// Функция для генерации запросов (разных типов)
+func generateTargets() vegeta.Targeter {
+	targets := []func(t *vegeta.Target) error{
+		testBuyMerchTarget,
+		testGetAPIInfo,
+		testSendCoinTarget,
+	}
+
+	return targets[time.Now().UnixNano()%int64(len(targets))]
 }
 
 // Функция для вывода метрик теста.
@@ -243,26 +242,16 @@ func printMetrics(metrics vegeta.Metrics) {
 
 func main() {
 	// Настройка интенсивности запросов
-	rate := vegeta.Rate{Freq: 350, Per: time.Second}
+	pacer := vegeta.ConstantPacer{Freq: 1000, Per: time.Second} // 1000 запросов в секунду
+
 
 	// Длительность теста
-	duration := 1 * time.Minute
+	duration := 10 * time.Second
 
 	// Создаем атакующего (attacker)
 	attacker := vegeta.NewAttacker()
 
-	// Используем WaitGroup для синхронизации горутин
-	var wg sync.WaitGroup
-
-	// Запускаем несколько атак в горутинах
-	wg.Add(3)
-
 	_ = testCreateUser
 
-	go runTest(&wg, attacker, testBuyMerchTarget, rate, duration, "Buy Merch")
-	go runTest(&wg, attacker, testSendCoinTarget, rate, duration, "Transfer Coins")
-	go runTest(&wg, attacker, testGetAPIInfo, rate, duration, "Get User Balance")
-
-	// Ожидаем завершения всех атак
-	wg.Wait()
+	runTest(attacker, pacer, duration)
 }

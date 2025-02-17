@@ -177,6 +177,13 @@ make test
 
 **Load Testing**
 
+Запуск:
+```bash
+ make load_test
+```
+
+Результаты:
+
     Duration 3s
 
     Get User Balance Test Results:

@@ -8,6 +8,9 @@ test:
 	go test -cover ./...
 	golangci-lint run
 
+load_test:
+	go run load_testing/load_testing.go
+
 docker_up:
 	sudo docker compose up -d --build
 
