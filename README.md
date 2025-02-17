@@ -1,4 +1,6 @@
-![](materials/avito_coin_logo.gif)
+<p align="center">
+  <img src="materials/avito_coin_logo.gif" alt="Avito Coin" width="800">
+</p>
 
 # 💙 ❤️ 💚 
 # Avito Coin Service 
