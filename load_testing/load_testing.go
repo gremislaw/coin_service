@@ -244,7 +244,7 @@ func main() {
 	pacer := vegeta.ConstantPacer{Freq: 1000, Per: time.Second} // 1000 запросов в секунду
 
 	// Длительность теста
-	duration := 1 * time.Hour
+	duration := 5 * time.Minute
 
 	// Создаем атакующего (attacker)
 	attacker := vegeta.NewAttacker()
