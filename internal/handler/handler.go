@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"avito_coin/api"
 	"avito_coin/internal/service"
@@ -24,6 +25,13 @@ func NewCoinHandler(e *echo.Echo, service *service.CoinService) {
 		service: service,
 		logger:  logger,
 	}
+
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			time.Sleep(50 * time.Millisecond) // Задержка в 50 мс
+			return next(c)
+		}
+	})
 
 	// Защищенные эндпоинты
 	// Общая группа API (без middleware)

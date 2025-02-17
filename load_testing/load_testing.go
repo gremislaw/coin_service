@@ -1,7 +1,6 @@
 package main
 
 import (
-	"avito_coin/api"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -12,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"avito_coin/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
@@ -164,8 +164,8 @@ func testSendCoinTarget(t *vegeta.Target) error {
 	toUser := randInt(1, 100000)
 	amount := randInt(10, 100)
 	data := api.SendCoinRequest{
-		ToUser: "test"+strconv.Itoa(toUser),
-		Amount:  amount,
+		ToUser: "test" + strconv.Itoa(toUser),
+		Amount: amount,
 	}
 
 	body, err := json.Marshal(data)
@@ -205,7 +205,6 @@ func runTest(
 	rate vegeta.Rate,
 	duration time.Duration,
 ) {
-
 	var metrics vegeta.Metrics
 	for res := range attacker.Attack(generateTargets(), rate, duration, "mixed testing") {
 		metrics.Add(res)
@@ -214,11 +213,11 @@ func runTest(
 	metrics.Close()
 
 	// Выводим результаты теста
-	fmt.Println("Test Results:\n")
+	fmt.Println("Test Results:")
 	printMetrics(metrics)
 }
 
-// Функция для генерации запросов (разных типов)
+// Функция для генерации запросов (разных типов).
 func generateTargets() vegeta.Targeter {
 	targets := []func(t *vegeta.Target) error{
 		testBuyMerchTarget,
@@ -244,9 +243,8 @@ func main() {
 	// Настройка интенсивности запросов
 	pacer := vegeta.ConstantPacer{Freq: 1000, Per: time.Second} // 1000 запросов в секунду
 
-
 	// Длительность теста
-	duration := 10 * time.Second
+	duration := 1 * time.Hour
 
 	// Создаем атакующего (attacker)
 	attacker := vegeta.NewAttacker()

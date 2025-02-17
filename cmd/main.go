@@ -30,7 +30,6 @@ func main() {
 		logrus.Fatalf("Failed to connect to DB: %v", err)
 	}
 
-	DB.SetMaxOpenConns(100)
 	logrus.Info("Database has been successfully connected")
 
 	// Создание слоя репозитория

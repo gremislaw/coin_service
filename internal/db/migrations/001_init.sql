@@ -45,14 +45,6 @@ ON transactions (from_user, to_user, transaction_time);
 CREATE INDEX IF NOT EXISTS idx_purchases_user_id
 ON purchases (user_id);
 
--- Индекс для товаров по названию (для быстрого поиска товаров по названию)
-CREATE INDEX IF NOT EXISTS idx_merch_name
-ON merch (name);
-
--- Индекс для транзакций по дате (для быстрого поиска транзакций по дате)
-CREATE INDEX IF NOT EXISTS idx_transactions_time
-ON transactions (transaction_time);
-
 -- Индекс для покупок по товару (для быстрого поиска всех покупок по конкретному товару)
 CREATE INDEX IF NOT EXISTS idx_purchases_merch_id
 ON purchases (merch_id);

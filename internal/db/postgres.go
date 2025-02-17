@@ -2,14 +2,17 @@ package db
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
 
 	"avito_coin/internal/config"
-	"avito_coin/internal/resource"
 	// Импортируем драйвер для работы с PostgreSQL через database/sql.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
+
+//go:embed migrations/*.sql
+var EmbedMigrations embed.FS
 
 func NewPostgresDB(cfg config.Config) (*sql.DB, error) {
 	dsn := fmt.Sprintf(
@@ -22,6 +25,9 @@ func NewPostgresDB(cfg config.Config) (*sql.DB, error) {
 		return nil, err
 	}
 
+	db.SetMaxOpenConns(1000)
+	db.SetMaxIdleConns(100)
+
 	if err = MigrateDB(db); err != nil {
 		return nil, err
 	}
@@ -30,7 +36,7 @@ func NewPostgresDB(cfg config.Config) (*sql.DB, error) {
 }
 
 func MigrateDB(db *sql.DB) error {
-	goose.SetBaseFS(resource.EmbedMigrations)
+	goose.SetBaseFS(EmbedMigrations)
 
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
