@@ -174,6 +174,8 @@ make test
 
 **Load Testing**
 
+    Duration 3s
+
     Get User Balance Test Results:
     Requests: 1510
     Success Rate: 100.00%

@@ -26,11 +26,14 @@ func NewCoinHandler(e *echo.Echo, service *service.CoinService) {
 	}
 
 	// Защищенные эндпоинты
-	protected := e.Group("") // Группируем защищенные маршруты
+	// Общая группа API (без middleware)
+	public := e.Group("")
+
+	protected := public.Group("") // Группируем защищенные маршруты
 	protected.Use(verifyAuth)
-	api.RegisterHandlers(protected, handler)
-	e.POST("/api/auth", handler.PostAPIAuth)
-	e.GET("/api/merch/:merch_id", handler.GetMerchPrice)
+
+	api.RegisterHandlers(public, protected, handler)
+	public.GET("/api/merch/:merch_id", handler.GetMerchPrice) // своя ручка (посчитал нужным)
 }
 
 // PostApiAuth - обработчик для авторизации/регистрации пользователя.
@@ -162,7 +165,7 @@ func (h *CoinHandler) GetMerchPrice(c echo.Context) error {
 	}
 
 	// Логируем успешный ответ и возвращаем результат
-	return respondWithSuccess(c, "Merch price retrieved successfully", logrus.Fields{
+	return respondWithSuccess(c, map[string]int32{"price": price}, logrus.Fields{
 		"merch_id": merchID,
 		"price":    price,
 	})

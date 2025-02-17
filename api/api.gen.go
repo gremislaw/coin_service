@@ -169,20 +169,21 @@ type EchoRouter interface {
 }
 
 // RegisterHandlers adds each server route to the EchoRouter.
-func RegisterHandlers(router EchoRouter, si ServerInterface) {
-	RegisterHandlersWithBaseURL(router, si, "")
+func RegisterHandlers(publicRouter, protectedRouter EchoRouter, si ServerInterface) {
+	RegisterHandlersWithBaseURL(publicRouter, protectedRouter, si, "")
 }
 
 // Registers handlers, and prepends BaseURL to the paths, so that the paths
 // can be served under a prefix.
-func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL string) {
+func RegisterHandlersWithBaseURL(publicRouter, protectedRouter EchoRouter, si ServerInterface, baseURL string) {
 
 	wrapper := ServerInterfaceWrapper{
 		Handler: si,
 	}
 
-	router.GET(baseURL+"/api/buy/:item", wrapper.GetApiBuyItem)
-	router.GET(baseURL+"/api/info", wrapper.GetApiInfo)
-	router.POST(baseURL+"/api/sendCoin", wrapper.PostApiSendCoin)
+	publicRouter.POST(baseURL+"/api/auth", wrapper.PostApiAuth)
+	protectedRouter.GET(baseURL+"/api/buy/:item", wrapper.GetApiBuyItem)
+	protectedRouter.GET(baseURL+"/api/info", wrapper.GetApiInfo)
+	protectedRouter.POST(baseURL+"/api/sendCoin", wrapper.PostApiSendCoin)
 
 }

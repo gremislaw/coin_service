@@ -6,7 +6,8 @@ import (
 
 	"avito_coin/internal/config"
 	"avito_coin/internal/resource"
-	// "github.com/jackc/pgx/v5/stdlib".
+	// Импортируем драйвер для работы с PostgreSQL через database/sql.
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
