@@ -1,4 +1,4 @@
-![](materials/avito_coin_logo.gif)
+![](materials/avito_coin_1000.gif)
 
 # 💙 ❤️ 💚 
 # Avito Coin Service 
