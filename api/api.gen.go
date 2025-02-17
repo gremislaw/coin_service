@@ -85,16 +85,16 @@ type PostApiSendCoinJSONRequestBody = SendCoinRequest
 type ServerInterface interface {
 	// Аутентификация и получение JWT-токена. При первой аутентификации пользователь создается автоматически.
 	// (POST /api/auth)
-	PostApiAuth(ctx echo.Context) error
+	PostAPIAuth(ctx echo.Context) error
 	// Купить предмет за монеты.
 	// (GET /api/buy/{item})
-	GetApiBuyItem(ctx echo.Context, item string) error
+	GetAPIBuyItem(ctx echo.Context, item string) error
 	// Получить информацию о монетах, инвентаре и истории транзакций.
 	// (GET /api/info)
-	GetApiInfo(ctx echo.Context) error
+	GetAPIInfo(ctx echo.Context) error
 	// Отправить монеты другому пользователю.
 	// (POST /api/sendCoin)
-	PostApiSendCoin(ctx echo.Context) error
+	PostAPISendCoin(ctx echo.Context) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -109,7 +109,7 @@ func (w *ServerInterfaceWrapper) PostApiAuth(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostApiAuth(ctx)
+	err = w.Handler.PostAPIAuth(ctx)
 	return err
 }
 
@@ -127,7 +127,7 @@ func (w *ServerInterfaceWrapper) GetApiBuyItem(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetApiBuyItem(ctx, item)
+	err = w.Handler.GetAPIBuyItem(ctx, item)
 	return err
 }
 
@@ -138,7 +138,7 @@ func (w *ServerInterfaceWrapper) GetApiInfo(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetApiInfo(ctx)
+	err = w.Handler.GetAPIInfo(ctx)
 	return err
 }
 
@@ -149,7 +149,7 @@ func (w *ServerInterfaceWrapper) PostApiSendCoin(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostApiSendCoin(ctx)
+	err = w.Handler.PostAPISendCoin(ctx)
 	return err
 }
 

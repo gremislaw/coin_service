@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net/http"
 	"sync"
 	"time"
@@ -12,22 +14,39 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Генерация случайной строки фиксированной длины
+// Генерация безопасной случайной строки фиксированной длины.
 func randString(length int) string {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	var result string
+
+	var result []byte
+
 	for i := 0; i < length; i++ {
-		result += string(chars[rand.Intn(len(chars))])
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			panic(err)
+		}
+
+		result = append(result, chars[n.Int64()])
 	}
-	return result
+
+	return string(result)
 }
 
-// Генерация случайного числа в заданном диапазоне
-func randInt(min, max int) int {
-	return rand.Intn(max-min+1) + min
+// Генерация случайного числа в заданном диапазоне (безопасно).
+func randInt(minn, maxx int) int {
+	if minn >= maxx {
+		panic("min > max")
+	}
+
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(maxx-minn+1)))
+	if err != nil {
+		panic(err)
+	}
+
+	return int(n.Int64()) + minn
 }
 
-// Авторизация пользователя, получение JWT
+// Авторизация пользователя, получение JWT.
 func authenticateUser(userID int) (string, error) {
 	username := fmt.Sprintf("test%d", userID)
 	password := "test"
@@ -41,10 +60,25 @@ func authenticateUser(userID int) (string, error) {
 		return "", err
 	}
 
-	resp, err := http.Post("http://localhost:8080/api/auth", "application/json", bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"http://localhost:8080/api/auth",
+		bytes.NewBuffer(body),
+	)
 	if err != nil {
 		return "", err
 	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return "", err
+	}
+
 	defer resp.Body.Close()
 
 	// Проверяем статус ответа
@@ -66,7 +100,7 @@ func authenticateUser(userID int) (string, error) {
 	return token, nil
 }
 
-// Добавляем JWT в заголовки запроса
+// Добавляем JWT в заголовки запроса.
 func addJWTToHeader(t *vegeta.Target, userID int) error {
 	token, err := authenticateUser(userID)
 	if err != nil {
@@ -77,10 +111,11 @@ func addJWTToHeader(t *vegeta.Target, userID int) error {
 		"Content-Type":  {"application/json"},
 		"Authorization": {"Bearer " + token},
 	}
+
 	return nil
 }
 
-// Функция для выполнения запроса на создание пользователя
+// Функция для выполнения запроса на создание пользователя.
 func testCreateUser(t *vegeta.Target) error {
 	t.Method = "POST"
 	t.URL = "http://localhost:8080/api/auth"
@@ -110,7 +145,7 @@ func testCreateUser(t *vegeta.Target) error {
 	return nil
 }
 
-// Функция для выполнения запроса на покупку товара
+// Функция для выполнения запроса на покупку товара.
 func testBuyMerchTarget(t *vegeta.Target) error {
 	t.Method = "GET"
 	userID := randInt(1, 100000)
@@ -129,7 +164,7 @@ func testBuyMerchTarget(t *vegeta.Target) error {
 	return nil
 }
 
-// Функция для выполнения запроса на перевод монет
+// Функция для выполнения запроса на перевод монет.
 func testSendCoinTarget(t *vegeta.Target) error {
 	t.Method = "POST"
 	t.URL = "http://localhost:8080/api/sendCoin"
@@ -159,8 +194,8 @@ func testSendCoinTarget(t *vegeta.Target) error {
 	return nil
 }
 
-// Функция для выполнения запроса на получение баланса пользователя
-func testGetApiInfo(t *vegeta.Target) error {
+// Функция для выполнения запроса на получение баланса пользователя.
+func testGetAPIInfo(t *vegeta.Target) error {
 	userID := randInt(1, 100000)
 	t.Method = "GET"
 	t.URL = "http://localhost:8080/api/info"
@@ -173,13 +208,21 @@ func testGetApiInfo(t *vegeta.Target) error {
 	return nil
 }
 
-func runTest(wg *sync.WaitGroup, attacker *vegeta.Attacker, target func(*vegeta.Target) error, rate vegeta.Rate, duration time.Duration, name string) {
+func runTest(
+	wg *sync.WaitGroup,
+	attacker *vegeta.Attacker,
+	target func(*vegeta.Target) error,
+	rate vegeta.Rate,
+	duration time.Duration,
+	name string,
+) {
 	defer wg.Done()
 
 	var metrics vegeta.Metrics
 	for res := range attacker.Attack(target, rate, duration, name) {
 		metrics.Add(res)
 	}
+
 	metrics.Close()
 
 	// Выводим результаты теста
@@ -187,7 +230,7 @@ func runTest(wg *sync.WaitGroup, attacker *vegeta.Attacker, target func(*vegeta.
 	printMetrics(metrics)
 }
 
-// Функция для вывода метрик теста
+// Функция для вывода метрик теста.
 func printMetrics(metrics vegeta.Metrics) {
 	fmt.Printf("Requests: %d\n", metrics.Requests)
 	fmt.Printf("Success Rate: %.2f%%\n", metrics.Success*100)
@@ -215,9 +258,10 @@ func main() {
 	wg.Add(3)
 
 	_ = testCreateUser
+
 	go runTest(&wg, attacker, testBuyMerchTarget, rate, duration, "Buy Merch")
 	go runTest(&wg, attacker, testSendCoinTarget, rate, duration, "Transfer Coins")
-	go runTest(&wg, attacker, testGetApiInfo, rate, duration, "Get User Balance")
+	go runTest(&wg, attacker, testGetAPIInfo, rate, duration, "Get User Balance")
 
 	// Ожидаем завершения всех атак
 	wg.Wait()

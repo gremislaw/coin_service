@@ -1,13 +1,14 @@
 package repository
 
 import (
-	"avito_coin/internal/db"
 	"context"
 	"database/sql"
 	"fmt"
+
+	"avito_coin/internal/db"
 )
 
-// Repository - интерфейс репозитория для операций с монетками и мерчем
+// Repository - интерфейс репозитория для операций с монетками и мерчем.
 type Repository interface {
 	CreateUser(ctx context.Context, username, password string) (int32, error)
 	CreateMerch(ctx context.Context, name string, price int32) error
@@ -21,21 +22,21 @@ type Repository interface {
 	UserExists(ctx context.Context, username string) (db.UserExistsRow, error)
 }
 
-// coinRepository - структура, которая реализует интерфейс Repository
+// coinRepository - структура, которая реализует интерфейс Repository.
 type coinRepository struct {
 	queries *db.Queries
 	db      *sql.DB
 }
 
-// NewRepository - функция для создания нового репозитория
-func NewRepository(DB *sql.DB) Repository {
+// NewRepository - функция для создания нового репозитория.
+func NewRepository(database *sql.DB) Repository {
 	return &coinRepository{
-		queries: db.New(DB),
-		db:      DB,
+		queries: db.New(database),
+		db:      database,
 	}
 }
 
-// CreateUser - создание пользователя с именем и паролем
+// CreateUser - создание пользователя с именем и паролем.
 func (r *coinRepository) CreateUser(ctx context.Context, username, password string) (int32, error) {
 	return r.queries.CreateUser(ctx, db.CreateUserParams{
 		Username: username,
@@ -43,7 +44,7 @@ func (r *coinRepository) CreateUser(ctx context.Context, username, password stri
 	})
 }
 
-// CreateMerch - создание мерча с именем и ценой
+// CreateMerch - создание мерча с именем и ценой.
 func (r *coinRepository) CreateMerch(ctx context.Context, name string, price int32) error {
 	return r.queries.CreateMerch(ctx, db.CreateMerchParams{
 		Name:  name,
@@ -51,9 +52,8 @@ func (r *coinRepository) CreateMerch(ctx context.Context, name string, price int
 	})
 }
 
-// BuyMerch - покупка мерча пользователем
+// BuyMerch - покупка мерча пользователем.
 func (r *coinRepository) BuyMerch(ctx context.Context, userID, merchID int32) error {
-
 	// Начинаем транзакцию
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -95,6 +95,7 @@ func (r *coinRepository) BuyMerch(ctx context.Context, userID, merchID int32) er
 
 	// Обновляем баланс пользователя
 	newBalance := balance - price
+
 	err = qtx.UpdateUserBalance(ctx, db.UpdateUserBalanceParams{
 		Balance: newBalance,
 		ID:      userID,
@@ -111,7 +112,7 @@ func (r *coinRepository) BuyMerch(ctx context.Context, userID, merchID int32) er
 	return nil
 }
 
-// TransferCoins - перевод монет от одного пользователя к другому
+// TransferCoins - перевод монет от одного пользователя к другому.
 func (r *coinRepository) TransferCoins(ctx context.Context, fromUser, toUser, amount int32) error {
 	// Начинаем транзакцию
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -180,17 +181,17 @@ func (r *coinRepository) TransferCoins(ctx context.Context, fromUser, toUser, am
 	return nil
 }
 
-// GetUserPurchases - получение всех покупок пользователя
+// GetUserPurchases - получение всех покупок пользователя.
 func (r *coinRepository) GetUserPurchases(ctx context.Context, userID int32) ([]db.GetUserPurchasesRow, error) {
 	return r.queries.GetUserPurchases(ctx, sql.NullInt32{Int32: userID, Valid: true})
 }
 
-// GetTransactions - получение списка всех транзакций пользователя
+// GetTransactions - получение списка всех транзакций пользователя.
 func (r *coinRepository) GetTransactions(ctx context.Context, userID int32) ([]db.GetTransactionsRow, error) {
 	return r.queries.GetTransactions(ctx, sql.NullInt32{Int32: userID, Valid: true})
 }
 
-// UpdateUserBalance - обновление баланса пользователя
+// UpdateUserBalance - обновление баланса пользователя.
 func (r *coinRepository) UpdateUserBalance(ctx context.Context, userID int32, balance int32) error {
 	return r.queries.UpdateUserBalance(ctx, db.UpdateUserBalanceParams{
 		Balance: balance,
@@ -198,17 +199,17 @@ func (r *coinRepository) UpdateUserBalance(ctx context.Context, userID int32, ba
 	})
 }
 
-// GetUserBalance - получение баланса пользователя
+// GetUserBalance - получение баланса пользователя.
 func (r *coinRepository) GetUserBalance(ctx context.Context, userID int32) (int32, error) {
 	return r.queries.GetUserBalance(ctx, userID)
 }
 
-// UserExists - существует ли пользователь
+// UserExists - существует ли пользователь.
 func (r *coinRepository) UserExists(ctx context.Context, username string) (db.UserExistsRow, error) {
 	return r.queries.UserExists(ctx, username)
 }
 
-// GetUserBalance - получение баланса пользователя
+// GetUserBalance - получение баланса пользователя.
 func (r *coinRepository) GetMerchPrice(ctx context.Context, merchID int32) (int32, error) {
 	return r.queries.GetMerchPrice(ctx, merchID)
 }

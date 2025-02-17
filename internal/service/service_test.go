@@ -7,22 +7,21 @@ import (
 
 	"avito_coin/internal/db"
 	"avito_coin/internal/service"
-
 	"github.com/stretchr/testify/assert"
 )
 
-// MockRepository - мок-репозиторий для тестирования
+// MockRepository - мок-репозиторий для тестирования.
 type MockRepository struct {
-	CreateUserFunc          func(ctx context.Context, username, password string) (int32, error)
-	CreateMerchFunc         func(ctx context.Context, name string, price int32) error
-	BuyMerchFunc            func(ctx context.Context, userID, merchID int32) error
-	GetMerchPriceFunc       func(ctx context.Context, merchID int32) (int32, error)
-	TransferCoinsFunc       func(ctx context.Context, fromUser, toUser, amount int32) error
-	GetUserBalanceFunc      func(ctx context.Context, userID int32) (int32, error)
-	GetUserPurchasesFunc    func(ctx context.Context, userID int32) ([]db.GetUserPurchasesRow, error)
-	GetTransactionsFunc     func(ctx context.Context, userID int32) ([]db.GetTransactionsRow, error)
-	UpdateUserBalanceFunc   func(ctx context.Context, userID int32, balance int32) error
-	UserExistsFunc          func(ctx context.Context, username string) (db.UserExistsRow, error)
+	CreateUserFunc        func(ctx context.Context, username, password string) (int32, error)
+	CreateMerchFunc       func(ctx context.Context, name string, price int32) error
+	BuyMerchFunc          func(ctx context.Context, userID, merchID int32) error
+	GetMerchPriceFunc     func(ctx context.Context, merchID int32) (int32, error)
+	TransferCoinsFunc     func(ctx context.Context, fromUser, toUser, amount int32) error
+	GetUserBalanceFunc    func(ctx context.Context, userID int32) (int32, error)
+	GetUserPurchasesFunc  func(ctx context.Context, userID int32) ([]db.GetUserPurchasesRow, error)
+	GetTransactionsFunc   func(ctx context.Context, userID int32) ([]db.GetTransactionsRow, error)
+	UpdateUserBalanceFunc func(ctx context.Context, userID int32, balance int32) error
+	UserExistsFunc        func(ctx context.Context, username string) (db.UserExistsRow, error)
 }
 
 func (m *MockRepository) CreateUser(ctx context.Context, username, password string) (int32, error) {
@@ -68,7 +67,7 @@ func (m *MockRepository) UserExists(ctx context.Context, username string) (db.Us
 func TestCreateUser(t *testing.T) {
 	// Создаем мок-репозиторий
 	mockRepo := &MockRepository{
-		CreateUserFunc: func(ctx context.Context, username, password string) (int32, error) {
+		CreateUserFunc: func(_ context.Context, _, _ string) (int32, error) {
 			return 1, nil // Возвращаем ID нового пользователя
 		},
 	}
@@ -87,13 +86,13 @@ func TestCreateUser(t *testing.T) {
 func TestBuyMerch(t *testing.T) {
 	// Создаем мок-репозиторий
 	mockRepo := &MockRepository{
-		GetUserBalanceFunc: func(ctx context.Context, userID int32) (int32, error) {
+		GetUserBalanceFunc: func(_ context.Context, _ int32) (int32, error) {
 			return 1000, nil // Баланс пользователя
 		},
-		GetMerchPriceFunc: func(ctx context.Context, merchID int32) (int32, error) {
+		GetMerchPriceFunc: func(_ context.Context, _ int32) (int32, error) {
 			return 500, nil // Цена мерча
 		},
-		BuyMerchFunc: func(ctx context.Context, userID, merchID int32) error {
+		BuyMerchFunc: func(_ context.Context, _, _ int32) error {
 			return nil // Успешная покупка
 		},
 	}
@@ -111,16 +110,16 @@ func TestBuyMerch(t *testing.T) {
 func TestTransferCoins(t *testing.T) {
 	// Создаем мок-репозиторий
 	mockRepo := &MockRepository{
-		UserExistsFunc: func(ctx context.Context, username string) (db.UserExistsRow, error) {
+		UserExistsFunc: func(_ context.Context, _ string) (db.UserExistsRow, error) {
 			return db.UserExistsRow{ID: 2}, nil // Получатель существует
 		},
-		GetUserBalanceFunc: func(ctx context.Context, userID int32) (int32, error) {
+		GetUserBalanceFunc: func(_ context.Context, userID int32) (int32, error) {
 			if userID == 1 {
 				return 1000, nil // Баланс отправителя
 			}
 			return 500, nil // Баланс получателя
 		},
-		TransferCoinsFunc: func(ctx context.Context, fromUser, toUser, amount int32) error {
+		TransferCoinsFunc: func(_ context.Context, _, _, _ int32) error {
 			return nil // Успешный перевод
 		},
 	}
@@ -138,7 +137,7 @@ func TestTransferCoins(t *testing.T) {
 func TestGetUserBalance(t *testing.T) {
 	// Создаем мок-репозиторий
 	mockRepo := &MockRepository{
-		GetUserBalanceFunc: func(ctx context.Context, userID int32) (int32, error) {
+		GetUserBalanceFunc: func(_ context.Context, _ int32) (int32, error) {
 			return 1000, nil // Баланс пользователя
 		},
 	}
@@ -157,7 +156,7 @@ func TestGetUserBalance(t *testing.T) {
 func TestGetUserPurchases(t *testing.T) {
 	// Создаем мок-репозиторий
 	mockRepo := &MockRepository{
-		GetUserPurchasesFunc: func(ctx context.Context, userID int32) ([]db.GetUserPurchasesRow, error) {
+		GetUserPurchasesFunc: func(_ context.Context, _ int32) ([]db.GetUserPurchasesRow, error) {
 			return []db.GetUserPurchasesRow{
 				{Name: "t-shirt"},
 				{Name: "cup"},
@@ -179,7 +178,7 @@ func TestGetUserPurchases(t *testing.T) {
 func TestGetTransactions(t *testing.T) {
 	// Создаем мок-репозиторий
 	mockRepo := &MockRepository{
-		GetTransactionsFunc: func(ctx context.Context, userID int32) ([]db.GetTransactionsRow, error) {
+		GetTransactionsFunc: func(_ context.Context, _ int32) ([]db.GetTransactionsRow, error) {
 			return []db.GetTransactionsRow{
 				{FromUser: sql.NullInt32{Int32: 2, Valid: true}, ToUser: sql.NullInt32{Int32: 1, Valid: true}, Amount: 100},
 				{FromUser: sql.NullInt32{Int32: 1, Valid: true}, ToUser: sql.NullInt32{Int32: 3, Valid: true}, Amount: 50},

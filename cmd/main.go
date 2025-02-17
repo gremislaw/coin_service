@@ -1,16 +1,16 @@
 package main
 
 import (
-	"avito_coin/internal/config"
-	"avito_coin/internal/db"
-	"avito_coin/internal/handler"
-	"avito_coin/internal/repository"
-	"avito_coin/internal/service"
 	"os"
 	"os/signal"
 	"syscall"
 	_ "time"
 
+	"avito_coin/internal/config"
+	"avito_coin/internal/db"
+	"avito_coin/internal/handler"
+	"avito_coin/internal/repository"
+	"avito_coin/internal/service"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 )
@@ -21,15 +21,17 @@ func main() {
 	if err != nil {
 		logrus.Infof(".env file not found: %v", err)
 	}
-	logrus.Info("Config has been successfuly loaded")
+
+	logrus.Info("Config has been successfully loaded")
 
 	// Подключение к БД
 	DB, err := db.NewPostgresDB(cfg)
 	if err != nil {
 		logrus.Fatalf("Failed to connect to DB: %v", err)
 	}
+
 	DB.SetMaxOpenConns(1000)
-	logrus.Info("Database has been successfuly connected")
+	logrus.Info("Database has been successfully connected")
 
 	// Создание слоя репозитория
 	repo := repository.NewRepository(DB)

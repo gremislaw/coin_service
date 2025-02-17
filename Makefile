@@ -6,6 +6,7 @@ install: install_tools
 
 test:
 	go test -cover ./...
+	golangci-lint run
 
 docker_up:
 	sudo docker compose up -d --build

@@ -1,15 +1,21 @@
 package db
 
 import (
+	"database/sql"
+	"fmt"
+
 	"avito_coin/internal/config"
 	"avito_coin/internal/resource"
-	"database/sql"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	// "github.com/jackc/pgx/v5/stdlib".
 	"github.com/pressly/goose/v3"
 )
 
 func NewPostgresDB(cfg config.Config) (*sql.DB, error) {
-	dsn := "postgres://" + cfg.DBUser + ":" + cfg.DBPassword + "@" + cfg.DBHost + ":" + cfg.DBPort + "/" + cfg.DBName + "?sslmode=disable"
+	dsn := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName,
+	)
+
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -28,6 +34,7 @@ func MigrateDB(db *sql.DB) error {
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
+
 	if err := goose.Up(db, "migrations"); err != nil {
 		return err
 	}

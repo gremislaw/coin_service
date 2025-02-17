@@ -1,22 +1,21 @@
 package handler
 
 import (
+	"net/http"
+
 	"avito_coin/api"
 	"avito_coin/internal/service"
-	"net/http"
-	"strconv"
-
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 )
 
-// CoinHandler - структура для обработчиков HTTP-запросов
+// CoinHandler - структура для обработчиков HTTP-запросов.
 type CoinHandler struct {
 	service *service.CoinService
 	logger  *logrus.Logger
 }
 
-// NewCoinHandler - функция для создания нового обработчика
+// NewCoinHandler - функция для создания нового обработчика.
 func NewCoinHandler(e *echo.Echo, service *service.CoinService) {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{}) // Используем JSON-формат для логов
@@ -30,227 +29,147 @@ func NewCoinHandler(e *echo.Echo, service *service.CoinService) {
 	protected := e.Group("") // Группируем защищенные маршруты
 	protected.Use(verifyAuth)
 	api.RegisterHandlers(protected, handler)
-	e.POST("/api/auth", handler.PostApiAuth)
+	e.POST("/api/auth", handler.PostAPIAuth)
 	e.GET("/api/merch/:merch_id", handler.GetMerchPrice)
 }
 
-// PostApiAuth - обработчик для авторизации/регистрации пользователя
-func (h *CoinHandler) PostApiAuth(c echo.Context) error {
+// PostApiAuth - обработчик для авторизации/регистрации пользователя.
+func (h *CoinHandler) PostAPIAuth(c echo.Context) error {
 	h.logger.WithFields(logrus.Fields{
 		"endpoint": "/auth",
 		"method":   "POST",
 	}).Info("PostApiAuth request received")
 
-	var request api.AuthRequest
-
-	// Парсим тело запроса
-	if err := c.Bind(&request); err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error": err.Error(),
-		}).Error("Failed to parse request body")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
+	// Парсим запрос
+	request, err := parseAuthRequest(c)
+	if err != nil {
+		return respondWithError(c, http.StatusBadRequest, "Failed to parse request body", err)
 	}
 
-	// Проверяем, есть ли пользователь с таким именем
-	if userRow, err := h.service.UserExists(c.Request().Context(), request.Username); err == nil {
-		// Пользователь найден, проверяем пароль
-		if request.Password != userRow.Password { // В реальной жизни нужно хешировать пароли!
-			h.logger.WithFields(logrus.Fields{
-				"username": request.Username,
-			}).Error("Invalid password")
-			errorMessage := "invalid password"
-			return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-				Errors: &errorMessage,
-			})
+	// Проверяем, существует ли пользователь
+	user, err := h.service.UserExists(c.Request().Context(), request.Username)
+	if err == nil {
+		// Проверяем пароль
+		if !validatePassword(request.Password, user.Password) {
+			return respondWithError(c, http.StatusUnauthorized, "Invalid password", nil)
 		}
 
-		// Генерация JWT для существующего пользователя
-		var resp api.AuthResponse
-		token, err := generateJWT(userRow.ID)
-		resp.Token = &token
-		if err != nil {
-			h.logger.WithFields(logrus.Fields{
-				"error": err.Error(),
-			}).Error("Failed to generate JWT")
-			errorMessage := err.Error()
-			return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-				Errors: &errorMessage,
-			})
-		}
-
-		// Возвращаем успешный ответ с токеном
-		h.logger.WithFields(logrus.Fields{
-			"user_id":  userRow.ID,
-			"username": request.Username,
-		}).Info("User authenticated successfully")
-		return c.JSON(http.StatusOK, resp)
+		// Генерируем JWT и отправляем ответ
+		return respondWithToken(c, user.ID, "User authenticated successfully")
 	}
 
-	// Если пользователь не найден, создаем нового
-	h.logger.WithFields(logrus.Fields{
-		"username": request.Username,
-	}).Info("User not found, creating a new one")
-
-	newID, err := h.service.CreateUser(c.Request().Context(), request.Username, request.Password)
+	// Регистрируем нового пользователя
+	newUserID, err := h.service.CreateUser(c.Request().Context(), request.Username, request.Password)
 	if err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":    err.Error(),
-			"username": request.Username,
-		}).Error("Failed to create user")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
+		return respondWithError(c, http.StatusInternalServerError, "Failed to create user", err)
 	}
 
-	// Генерация JWT для нового пользователя
-	var resp api.AuthResponse
-	token, err := generateJWT(newID)
-	resp.Token = &token
-	if err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error": err.Error(),
-		}).Error("Failed to generate JWT")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
-	}
-
-	// Возвращаем успешный ответ с токеном
-	h.logger.WithFields(logrus.Fields{
-		"jwt_user_id": newID,
-	}).Info("User created and authenticated successfully")
-	return c.JSON(http.StatusOK, resp)
+	// Генерируем JWT и отправляем ответ
+	return respondWithToken(c, newUserID, "User created and authenticated successfully")
 }
 
-// GetApiBuyItem - обработчик для покупки мерча
-func (h *CoinHandler) GetApiBuyItem(c echo.Context, item string) error {
+// GetApiBuyItem - обработчик для покупки мерча.
+func (h *CoinHandler) GetAPIBuyItem(c echo.Context, item string) error {
 	h.logger.WithFields(logrus.Fields{
 		"endpoint": "/buy/:item",
 		"method":   "GET",
 	}).Info("GetApiBuyItem request received")
 
-	merchID, err := strconv.Atoi(item)
+	// Получаем merchID
+	merchID, err := parseMerchID(item)
 	if err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":    err.Error(),
-			"merch_id": c.Param("merch_id"),
-		}).Error("Invalid merch ID")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
+		return respondWithError(c, http.StatusBadRequest, "Invalid merch ID", err)
 	}
 
-	// Извлекаем user_id из JWT
-	userID := c.Get("jwt_user_id").(int32)
+	// Получаем userID из JWT
+	userID, err := extractUserID(c)
+	if err != nil {
+		return respondWithError(c, http.StatusUnauthorized, "Invalid user ID", err)
+	}
 
 	// Вызываем сервисный слой
-	if err := h.service.BuyMerch(c.Request().Context(), userID, int32(merchID)); err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":    err.Error(),
-			"user_id":  userID,
-			"merch_id": merchID,
-		}).Error("Failed to buy merch")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
+	if err := h.service.BuyMerch(c.Request().Context(), userID, merchID); err != nil {
+		return respondWithError(c, http.StatusInternalServerError, "Failed to buy merch", err)
 	}
 
+	// Логируем и возвращаем успешный ответ
 	h.logger.WithFields(logrus.Fields{
 		"user_id":  userID,
 		"merch_id": merchID,
 	}).Info("Merch purchased successfully")
-	return c.JSON(http.StatusOK, map[string]string{"message": "merch purchased successfully"})
+
+	return respondWithSuccess(c, "Merch purchased successfully", logrus.Fields{
+		"user_id":  userID,
+		"merch_id": merchID,
+	})
 }
 
-// PostApiSendCoin - обработчик для перевода монет
-func (h *CoinHandler) PostApiSendCoin(c echo.Context) error {
+// PostApiSendCoin - обработчик для перевода монет.
+func (h *CoinHandler) PostAPISendCoin(c echo.Context) error {
 	h.logger.WithFields(logrus.Fields{
 		"endpoint": "/sendCoin",
 		"method":   "POST",
 	}).Info("PostApiSendCoin request received")
 
-	var request api.SendCoinRequest
-
 	// Парсим тело запроса
-	if err := c.Bind(&request); err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error": err.Error(),
-		}).Error("Failed to parse request body")
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	request, err := parseSendCoinRequest(c)
+	if err != nil {
+		return respondWithError(c, http.StatusBadRequest, "Invalid request body", err)
+	}
+
+	// Проверяем диапазон значения amount
+	amount, err := validateAmount(request.Amount)
+	if err != nil {
+		return respondWithError(c, http.StatusInternalServerError, err.Error(), nil)
 	}
 
 	// Извлекаем user_id из JWT
-	userID := c.Get("jwt_user_id").(int32)
-
-	// Вызываем сервисный слой
-	if err := h.service.TransferCoins(c.Request().Context(), userID, request.ToUser, int32(request.Amount)); err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":     err.Error(),
-			"from_user": userID,
-			"to_user":   request.ToUser,
-			"amount":    request.Amount,
-		}).Error("Failed to transfer coins")
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	userID, err := extractUserID(c)
+	if err != nil {
+		return respondWithError(c, http.StatusUnauthorized, "Invalid user ID", err)
 	}
 
-	h.logger.WithFields(logrus.Fields{
+	// Вызываем сервисный слой
+	if err := h.service.TransferCoins(c.Request().Context(), userID, request.ToUser, amount); err != nil {
+		return respondWithTransferError(c, err, userID, request.ToUser, amount)
+	}
+
+	// Логируем и отправляем успешный ответ
+	return respondWithSuccess(c, "Coins transferred successfully", logrus.Fields{
 		"from_user": userID,
 		"to_user":   request.ToUser,
 		"amount":    request.Amount,
-	}).Info("Coins transferred successfully")
-	return c.JSON(http.StatusOK, map[string]string{"message": "coins transferred successfully"})
+	})
 }
 
-// GetMerchPrice - обработчик для получения цены товара
+// GetMerchPrice - обработчик для получения цены товара.
 func (h *CoinHandler) GetMerchPrice(c echo.Context) error {
 	h.logger.WithFields(logrus.Fields{
 		"endpoint": "/merch/:merch_id/price",
 		"method":   "GET",
 	}).Info("GetMerchPrice request received")
 
-	// Извлекаем ID товара из параметров URL
-	merchID, err := strconv.Atoi(c.Param("merch_id"))
+	// Извлекаем merch_id из параметров
+	merchID, err := extractMerchID(c)
 	if err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":    err.Error(),
-			"merch_id": c.Param("merch_id"),
-		}).Error("Invalid merch ID")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
+		return respondWithError(c, http.StatusInternalServerError, "Invalid merch ID", err)
 	}
 
-	// Вызываем сервисный слой для получения цены товара
-	price, err := h.service.GetMerchPrice(c.Request().Context(), int32(merchID))
+	// Получаем цену товара через сервисный слой
+	price, err := h.service.GetMerchPrice(c.Request().Context(), merchID)
 	if err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":    err.Error(),
-			"merch_id": merchID,
-		}).Error("Failed to get merch price")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
+		return respondWithError(c, http.StatusInternalServerError, "Failed to get merch price", err)
 	}
 
-	// Логируем успешный ответ
-	h.logger.WithFields(logrus.Fields{
+	// Логируем успешный ответ и возвращаем результат
+	return respondWithSuccess(c, "Merch price retrieved successfully", logrus.Fields{
 		"merch_id": merchID,
 		"price":    price,
-	}).Info("Merch price retrieved successfully")
-	return c.JSON(http.StatusOK, map[string]int32{"price": price})
+	})
 }
 
-// GetApiInfo - обработчик для получения баланса, покупок и транзакций пользователя
-func (h *CoinHandler) GetApiInfo(c echo.Context) error {
+// GetApiInfo - обработчик для получения баланса, покупок и транзакций пользователя.
+func (h *CoinHandler) GetAPIInfo(c echo.Context) error {
 	h.logger.WithFields(logrus.Fields{
 		"endpoint": "/info",
 		"method":   "GET",
@@ -259,57 +178,17 @@ func (h *CoinHandler) GetApiInfo(c echo.Context) error {
 	// Извлекаем user_id из JWT
 	userID := c.Get("jwt_user_id").(int32)
 
-	// Получаем баланс пользователя
-	balance, err := h.service.GetUserBalance(c.Request().Context(), userID)
+	// Получаем информацию о пользователе
+	info, err := h.getUserInfo(c.Request().Context(), userID)
 	if err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":   err.Error(),
-			"user_id": userID,
-		}).Error("Failed to get user balance")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
-	}
-
-	// Получаем покупки пользователя
-	purchases, err := h.service.GetUserPurchases(c.Request().Context(), userID)
-	if err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":   err.Error(),
-			"user_id": userID,
-		}).Error("Failed to get user purchases")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
-	}
-
-	// Получаем транзакции пользователя
-	transactions, err := h.service.GetTransactions(c.Request().Context(), userID)
-	if err != nil {
-		h.logger.WithFields(logrus.Fields{
-			"error":   err.Error(),
-			"user_id": userID,
-		}).Error("Failed to get user transactions")
-		errorMessage := err.Error()
-		return c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-			Errors: &errorMessage,
-		})
+		return respondWithError(c, http.StatusInternalServerError, "Failed to retrieve user info", err)
 	}
 
 	// Логируем успешное выполнение запроса
-	h.logger.WithFields(logrus.Fields{
+	return respondWithSuccess(c, info, logrus.Fields{
 		"user_id":      userID,
-		"balance":      balance,
-		"purchases":    len(*purchases.Inventory),
-		"transactions": len(*transactions.CoinHistory.Received) + len(*transactions.CoinHistory.Sent),
-	}).Info("User info retrieved successfully")
-
-	// Возвращаем все данные в одном ответе
-	return c.JSON(http.StatusOK, api.InfoResponse{
-		Coins:       balance.Coins,
-		Inventory:   purchases.Inventory,
-		CoinHistory: transactions.CoinHistory,
+		"balance":      info.Coins,
+		"purchases":    len(*info.Inventory),
+		"transactions": len(*info.CoinHistory.Received) + len(*info.CoinHistory.Sent),
 	})
 }

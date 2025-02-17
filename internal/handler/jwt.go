@@ -20,6 +20,7 @@ type Claims struct {
 func generateSecretKey() string {
 	// Генерация случайных 32 байтов
 	secret := make([]byte, 32)
+
 	_, err := rand.Read(secret)
 	if err != nil {
 		logrus.Fatal(err)
@@ -32,29 +33,32 @@ func generateSecretKey() string {
 
 var jwtSecret = []byte(generateSecretKey())
 
-func generateJWT(user_id int32) (string, error) {
+func generateJWT(userID int32) (string, error) {
 	claims := &Claims{
-		UserID: user_id,
+		UserID: userID,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), // Время жизни токена 24 часа
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
 	return token.SignedString(jwtSecret)
 }
 
-// Функция для проверки токена
+// Функция для проверки токена.
 func verifyJWT(tokenString string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(_ *jwt.Token) (interface{}, error) {
 		return jwtSecret, nil
 	})
 	if err != nil || !token.Valid {
 		return nil, err
 	}
+
 	claims, ok := token.Claims.(*Claims)
 	if !ok {
 		return nil, fmt.Errorf("could not parse claims")
 	}
+
 	return claims, nil
 }
 

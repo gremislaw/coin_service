@@ -173,6 +173,7 @@ make test
 - Получение баланса и истории транзакций.
 
 **Load Testing**
+
     Get User Balance Test Results:
     Requests: 1510
     Success Rate: 100.00%
